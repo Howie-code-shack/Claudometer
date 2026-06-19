@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+._*
+.AppleDouble
+.Spotlight-V100
+.Trashes
+
+# Build output (the compiled .app bundle)
+build/
+
+# Distribution artifacts
+*.dmg
+dmg_temp/
+
+# Xcode / Swift Package Manager (not used today, but kept for safety)
+DerivedData/
+.build/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+
+# Claude Code local (machine-specific) settings; shared .claude/settings.json stays tracked
+.claude/settings.local.json

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claudometer — your Claude.ai limits, on the dial</title>
+<meta name="description" content="A macOS menu-bar app that shows your Claude.ai session and weekly usage limits as a live gauge. Free, private, notarized.">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Claudometer — your Claude.ai limits, on the dial">
+<meta property="og:description" content="A macOS menu-bar app that reads your Claude.ai usage limits and shows them as a live gauge.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --clay-900: #221310;
+    --clay-800: #2f1a14;
+    --clay-700: #3d241b;
+    --cream:    #faf6f0;
+    --cream-2:  #f0e9df;
+    --ink:      #1d1712;
+    --teal:     #1fb5a6;
+    --amber:    #f5a93b;
+    --coral:    #f2545b;
+    --haze:     rgba(250, 246, 240, 0.66);
+    --haze-dim: rgba(250, 246, 240, 0.40);
+    --hairline: rgba(250, 246, 240, 0.12);
+    --display: "Space Grotesk", system-ui, sans-serif;
+    --body: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--body);
+    color: var(--cream);
+    background:
+      radial-gradient(120% 90% at 50% -10%, var(--clay-700) 0%, var(--clay-800) 45%, var(--clay-900) 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap { width: 100%; max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+
+  /* tracked instrument labels */
+  .eyebrow {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--teal);
+  }
+
+  /* ---------- nav ---------- */
+  .nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 26px 0;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand img { width: 30px; height: 30px; border-radius: 8px; }
+  .brand b {
+    font-family: var(--display); font-weight: 700; font-size: 17px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .nav a.ghlink {
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.04em;
+    color: var(--haze); text-decoration: none; padding: 8px 12px;
+    border: 1px solid var(--hairline); border-radius: 999px; transition: .2s;
+  }
+  .nav a.ghlink:hover { color: var(--cream); border-color: var(--haze-dim); }
+
+  /* ---------- hero ---------- */
+  .hero {
+    display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px;
+    align-items: center; padding: 56px 0 40px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(38px, 5.4vw, 60px); line-height: 1.02;
+    letter-spacing: -0.02em; margin: 20px 0 0;
+  }
+  .hero h1 .swept { color: var(--amber); }
+  .hero p.lede {
+    font-size: 18px; color: var(--haze); margin: 20px 0 0; max-width: 30em;
+  }
+
+  .cta-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 34px; }
+  .btn-dl {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: var(--display); font-weight: 700; font-size: 16px;
+    letter-spacing: 0.01em; color: var(--ink);
+    background: var(--teal); border: none; border-radius: 13px;
+    padding: 15px 24px; text-decoration: none; cursor: pointer;
+    box-shadow: 0 10px 30px -8px rgba(31, 181, 166, 0.55);
+    transition: transform .15s ease, box-shadow .2s ease, background .2s;
+  }
+  .btn-dl:hover { transform: translateY(-2px); box-shadow: 0 16px 38px -8px rgba(31,181,166,.65); }
+  .btn-dl:active { transform: translateY(0); }
+  .btn-dl svg { width: 18px; height: 18px; }
+  .src-link {
+    font-family: var(--mono); font-size: 13px; color: var(--haze);
+    text-decoration: none; border-bottom: 1px solid var(--hairline); padding-bottom: 2px;
+  }
+  .src-link:hover { color: var(--cream); }
+
+  .meta {
+    margin-top: 16px; font-family: var(--mono); font-size: 12.5px;
+    color: var(--haze-dim); letter-spacing: 0.02em;
+  }
+  .meta b { color: var(--haze); font-weight: 500; }
+
+  /* ---------- the popover panel mockup (hero visual) ---------- */
+  .panel-stage { display: flex; justify-content: center; position: relative; }
+  .panel {
+    position: relative; width: 360px; max-width: 100%;
+    background: var(--cream); color: var(--ink);
+    border-radius: 16px; padding: 22px 20px 18px;
+    box-shadow: 0 40px 80px -24px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  /* little arrow implying it hangs from the menu bar */
+  .panel::before {
+    content: ""; position: absolute; top: -9px; right: 40px;
+    width: 18px; height: 18px; background: var(--cream);
+    transform: rotate(45deg); border-radius: 3px;
+  }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .panel-head .wm {
+    font-family: var(--display); font-weight: 700; font-size: 13px;
+    letter-spacing: 0.18em; color: var(--ink);
+  }
+  .panel-head .readout { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; color: #6b6259; }
+  .panel-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+  .gauges { display: flex; justify-content: space-between; gap: 8px; }
+  .g { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .g .lbl { font-family: var(--mono); font-weight: 700; font-size: 9.5px; letter-spacing: 0.12em; color: #8a8077; }
+  .g .sub { font-family: var(--mono); font-size: 10.5px; color: #6b6259; }
+  .panel-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.08);
+    font-family: var(--mono); font-size: 11px; color: #8a8077;
+  }
+
+  /* ---------- features ---------- */
+  .section { padding: 56px 0; }
+  .section-eyebrow { text-align: center; margin-bottom: 8px; }
+  .section h2 {
+    font-family: var(--display); font-weight: 700; text-align: center;
+    font-size: clamp(26px, 3.4vw, 34px); letter-spacing: -0.01em;
+  }
+  .feature-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-top: 40px;
+  }
+  .card {
+    background: rgba(250,246,240,0.035); border: 1px solid var(--hairline);
+    border-radius: 16px; padding: 24px;
+  }
+  .card .tag {
+    font-family: var(--mono); font-weight: 700; font-size: 11px;
+    letter-spacing: 0.16em; color: var(--teal); display: flex; align-items: center; gap: 9px;
+  }
+  .card .tag .pip { width: 18px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--teal), var(--amber), var(--coral)); }
+  .card h3 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 14px 0 8px; }
+  .card p { color: var(--haze); font-size: 14.5px; }
+
+  /* ---------- steps ---------- */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 36px; }
+  .step { text-align: left; }
+  .step .n { font-family: var(--mono); font-weight: 700; font-size: 12px; color: var(--coral); letter-spacing: 0.1em; }
+  .step h4 { font-family: var(--display); font-weight: 500; font-size: 17px; margin: 8px 0 6px; }
+  .step p { color: var(--haze); font-size: 14px; }
+
+  /* ---------- download band ---------- */
+  .dl-band { text-align: center; padding: 64px 0 40px; }
+  .dl-band h2 { margin-bottom: 22px; }
+
+  /* ---------- footer ---------- */
+  footer {
+    border-top: 1px solid var(--hairline); padding: 30px 0 48px; margin-top: 24px;
+    font-size: 13px; color: var(--haze-dim);
+  }
+  footer .frow { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center; }
+  footer a { color: var(--haze); text-decoration: none; }
+  footer a:hover { color: var(--cream); }
+  footer .disclaim { max-width: 46em; margin-top: 14px; line-height: 1.6; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 820px) {
+    .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 36px; text-align: center; }
+    .hero p.lede { margin-left: auto; margin-right: auto; }
+    .cta-row { justify-content: center; }
+    .panel-stage { order: -1; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-dl { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="nav">
+    <div class="brand">
+      <img src="icon.png" alt="Claudometer icon">
+      <b>Claudometer</b>
+    </div>
+    <a class="ghlink" href="https://github.com/Howie-code-shack/Claudometer">View on GitHub ↗</a>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-copy">
+      <span class="eyebrow">Menu-bar instrument · macOS</span>
+      <h1>Your Claude limits,<br>on the <span class="swept">dial</span>.</h1>
+      <p class="lede">Claudometer reads your Claude.ai session and weekly usage and shows it as a live gauge in your menu bar — so you always know how much you've got left before a reset.</p>
+      <div class="cta-row">
+        <a class="btn-dl" id="download" href="https://github.com/Howie-code-shack/Claudometer/releases/latest/download/Claudometer-1.0.0.dmg">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          Download for macOS
+        </a>
+        <a class="src-link" href="https://github.com/Howie-code-shack/Claudometer">or build from source →</a>
+      </div>
+      <p class="meta"><b>v1.0.0</b> · 985 KB · Apple Silicon &amp; Intel · macOS 13+ · <b>notarized by Apple</b></p>
+    </div>
+
+    <div class="panel-stage">
+      <div class="panel" role="img" aria-label="Claudometer menu-bar panel showing three usage gauges">
+        <div class="panel-head">
+          <span class="wm">CLAUDOMETER</span>
+          <span class="readout"><span class="dot"></span>82%</span>
+        </div>
+        <div class="gauges">
+          <div class="g"><div class="gauge" data-value="67"></div><span class="lbl">SESSION</span><span class="sub">2h 14m</span></div>
+          <div class="g"><div class="gauge" data-value="82"></div><span class="lbl">WEEKLY</span><span class="sub">3d 4h</span></div>
+          <div class="g"><div class="gauge" data-value="40"></div><span class="lbl">SONNET</span><span class="sub">3d 4h</span></div>
+        </div>
+        <div class="panel-foot"><span>Updated 9:01 AM</span><span>⟳</span></div>
+      </div>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="section-eyebrow eyebrow">What it does</div>
+    <h2>Everything you need, nothing you don't.</h2>
+    <div class="feature-grid">
+      <div class="card">
+        <div class="tag"><span class="pip"></span>Live readings</div>
+        <h3>Session, weekly &amp; Sonnet</h3>
+        <p>A gauge for each limit — the 5-hour session, the 7-day weekly, and the Pro weekly-Sonnet window — each with the time left until it resets.</p>
+      </div>
+      <div class="card">
+        <div class="tag"><span class="pip"></span>Redline alerts</div>
+        <h3>Know before you're cut off</h3>
+        <p>Optional notifications as you cross the thresholds you choose. Polling tightens automatically as you near a limit.</p>
+      </div>
+      <div class="card">
+        <div class="tag"><span class="pip"></span>Private &amp; local</div>
+        <h3>Your session stays yours</h3>
+        <p>Sign in once; the session lives in the macOS Keychain and talks only to claude.ai. No server, no analytics, no third party.</p>
+      </div>
+      <div class="card">
+        <div class="tag"><span class="pip"></span>Out of the way</div>
+        <h3>Menu-bar only</h3>
+        <p>No Dock icon, no clutter. A colour-coded gauge in your menu bar, and ⌘U to open the panel from anywhere.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-eyebrow eyebrow">Setup</div>
+    <h2>Running in under a minute.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="n">STEP 01</div>
+        <h4>Download &amp; drag</h4>
+        <p>Open the DMG and drag Claudometer to your Applications folder.</p>
+      </div>
+      <div class="step">
+        <div class="n">STEP 02</div>
+        <h4>Sign in to Claude</h4>
+        <p>A built-in window logs you into claude.ai — email/password or Google both work.</p>
+      </div>
+      <div class="step">
+        <div class="n">STEP 03</div>
+        <h4>Watch the dial</h4>
+        <p>Your usage appears in the menu bar and updates itself. That's it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="dl-band">
+    <div class="section-eyebrow eyebrow">Free &amp; open source</div>
+    <h2>Get Claudometer</h2>
+    <div class="cta-row" style="justify-content:center;">
+      <a class="btn-dl" href="https://github.com/Howie-code-shack/Claudometer/releases/latest/download/Claudometer-1.0.0.dmg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+        Download for macOS
+      </a>
+    </div>
+    <p class="meta" style="margin-top:18px;"><b>v1.0.0</b> · 985 KB · Apple Silicon &amp; Intel · macOS 13+ · notarized</p>
+  </section>
+
+  <footer>
+    <div class="frow">
+      <div class="brand"><b style="font-family:var(--display);letter-spacing:.16em;text-transform:uppercase;font-size:14px;">Claudometer</b></div>
+      <div>
+        <a href="https://github.com/Howie-code-shack/Claudometer">GitHub</a> ·
+        <a href="https://github.com/Howie-code-shack/Claudometer/releases">Releases</a> ·
+        <a href="https://github.com/Howie-code-shack/Claudometer/blob/main/LICENSE">MIT License</a>
+      </div>
+    </div>
+    <p class="disclaim">Claudometer reads claude.ai's internal endpoints, which may change without notice. It is not affiliated with or endorsed by Anthropic. Use at your own risk.</p>
+  </footer>
+
+</div>
+
+<script>
+  // Render the 270° gauges (teal → amber → coral scale, white needle, centred
+  // readout) — the same instrument as the app. Needles sweep on load.
+  const START = 135, SWEEP = 270;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function pt(cx, cy, r, deg) {
+    const a = deg * Math.PI / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  }
+  function arc(cx, cy, r, d1, d2) {
+    const [x1, y1] = pt(cx, cy, r, d1), [x2, y2] = pt(cx, cy, r, d2);
+    const large = (d2 - d1) > 180 ? 1 : 0;
+    return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+  }
+  const ang = v => START + (Math.max(0, Math.min(100, v)) / 100) * SWEEP;
+
+  function buildGauge(el) {
+    const value = +el.dataset.value;
+    const S = 96, cx = S / 2, cy = S / 2, R = 38, band = 7;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${S} ${S}`);
+    svg.setAttribute('width', S); svg.setAttribute('height', S);
+
+    const zones = [[0, 70, '#1fb5a6'], [70, 90, '#f5a93b'], [90, 100, '#f2545b']];
+    let html = '';
+    // faint full track
+    html += `<path d="${arc(cx, cy, R, START, START + SWEEP)}" stroke="rgba(0,0,0,0.07)" stroke-width="${band}" fill="none" stroke-linecap="round"/>`;
+    // coloured scale band
+    for (const [a, b, c] of zones)
+      html += `<path d="${arc(cx, cy, R, ang(a), ang(b))}" stroke="${c}" stroke-width="${band}" fill="none"/>`;
+    // ticks
+    for (let i = 0; i <= 10; i++) {
+      const d = ang(i * 10);
+      const [ox, oy] = pt(cx, cy, R + band / 2 + 1.5, d);
+      const [ix, iy] = pt(cx, cy, R + band / 2 - 1.5, d);
+      html += `<line x1="${ix.toFixed(2)}" y1="${iy.toFixed(2)}" x2="${ox.toFixed(2)}" y2="${oy.toFixed(2)}" stroke="rgba(0,0,0,0.22)" stroke-width="1"/>`;
+    }
+    svg.innerHTML = html;
+
+    // needle (animated) + hub + readout
+    const needle = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    needle.setAttribute('stroke', '#2a211c'); needle.setAttribute('stroke-width', '2');
+    needle.setAttribute('stroke-linecap', 'round'); needle.setAttribute('x1', cx); needle.setAttribute('y1', cy);
+    svg.appendChild(needle);
+    const hub = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    hub.setAttribute('cx', cx); hub.setAttribute('cy', cy); hub.setAttribute('r', '4.5'); hub.setAttribute('fill', '#2a211c');
+    svg.appendChild(hub);
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', cx); txt.setAttribute('y', cy + 20); txt.setAttribute('text-anchor', 'middle');
+    txt.setAttribute('font-family', 'JetBrains Mono, monospace'); txt.setAttribute('font-weight', '700');
+    txt.setAttribute('font-size', '15'); txt.setAttribute('fill', '#1d1712');
+    svg.appendChild(txt);
+    el.appendChild(svg);
+
+    const draw = v => {
+      const [nx, ny] = pt(cx, cy, R - band, ang(v));
+      needle.setAttribute('x2', nx.toFixed(2)); needle.setAttribute('y2', ny.toFixed(2));
+      txt.textContent = Math.round(v);
+    };
+
+    if (reduce) { draw(value); return; }
+    const dur = 1100, t0 = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / dur);
+      draw(value * ease(t));
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  document.querySelectorAll('.gauge').forEach(buildGauge);
+</script>
+</body>
+</html>
